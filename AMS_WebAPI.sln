@@ -5,6 +5,10 @@ VisualStudioVersion = 16.0.30804.86
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AMS_WebAPI", "AMS_WebAPI\AMS_WebAPI.csproj", "{3B852F4D-38AD-4D72-9A26-7A1B23939CF6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "API.Common", "..\..\..\SVNProjects\trunk\NewAMS\AMS_OLM\API.Common\API.Common.csproj", "{54D59646-0826-4ADE-9C78-081740A98A94}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "API.DB", "..\..\..\SVNProjects\trunk\NewAMS\AMS_OLM\API.DB\API.DB.csproj", "{37ACBECA-B4BF-45D2-A893-93698CCA1CCF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +19,14 @@ Global
 		{3B852F4D-38AD-4D72-9A26-7A1B23939CF6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3B852F4D-38AD-4D72-9A26-7A1B23939CF6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3B852F4D-38AD-4D72-9A26-7A1B23939CF6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{54D59646-0826-4ADE-9C78-081740A98A94}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{54D59646-0826-4ADE-9C78-081740A98A94}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{54D59646-0826-4ADE-9C78-081740A98A94}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{54D59646-0826-4ADE-9C78-081740A98A94}.Release|Any CPU.Build.0 = Release|Any CPU
+		{37ACBECA-B4BF-45D2-A893-93698CCA1CCF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{37ACBECA-B4BF-45D2-A893-93698CCA1CCF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{37ACBECA-B4BF-45D2-A893-93698CCA1CCF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{37ACBECA-B4BF-45D2-A893-93698CCA1CCF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
