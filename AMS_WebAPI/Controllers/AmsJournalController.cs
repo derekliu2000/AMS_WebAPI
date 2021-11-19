@@ -1,12 +1,18 @@
-﻿using API.Common.AMS;
+﻿using AMS_WebAPI.Models;
+using API.Common.AMS;
 using API.Common.DB;
+using API.Common.WebAPI;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace AMS_WebAPI.Controllers
 {
@@ -25,81 +31,77 @@ namespace AMS_WebAPI.Controllers
 
         // GET api/AmsJournalController/JrnMaxUTC
         [HttpGet("JrnMaxUTC")]
-        public IActionResult GetJrnMaxUTC(string p)
+        public IActionResult GetJrnMaxUTC()
         {
-            MaxUTCBuffer maxUTCBuffer;
-
             try
             {
-                maxUTCBuffer = new MaxUTCBuffer(p, Request.Headers["Data-Hash"]);
-                if (maxUTCBuffer.DBName == "")
-                {
-                    _logger.LogWarning($"new MaxUTCBuffer Hash Error({Request.Headers["DBName"]})");
-                    return Ok("Hash Error");
-                }
+                DateTime maxUTC = GetJrnMaxUTC_SQL(Request.Headers["DBName"], Convert.ToInt32(Request.Headers["Param"]));
+                return Ok(maxUTC);
             }
             catch (Exception e)
             {
-                _logger.LogError($"new MaxUTCBuffer exception({Request.Headers["DBName"]}): " + e.Message);
-                return BadRequest("new MaxUTCBuffer exception in GetJrnMaxUTC: " + e.Message);
-            }
-
-            try
-            {
-                DateTime maxUTC = GetJrnMaxUTC_SQL(maxUTCBuffer);
-                return Ok(maxUTC);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Get Jrn Max UTC from DB exception({Request.Headers["DBName"]}): " + ex.Message);
-                return BadRequest("Get Jrn Max UTC from DB exception: " + ex.Message);
+                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
         }
 
-        private DateTime GetJrnMaxUTC_SQL(MaxUTCBuffer maxUTCBuffer)
+        private DateTime GetJrnMaxUTC_SQL(string DBName, int firstTblIdx)
         {
-            DateTime maxUTC = DateTime.MinValue;
-
-            string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), maxUTCBuffer.DBName);
-            using (SqlConnection sqlConn = new SqlConnection(connectionString))
+            try
             {
-                sqlConn.Open();
+                DateTime maxUTC = DateTime.MinValue;
 
-                SqlCommand sqlCmd = new SqlCommand($"SELECT MAX(UTC) FROM {AMSDB.TABLE_JRN[maxUTCBuffer.tblIdx]}", sqlConn);
-                SqlDataReader dr = sqlCmd.ExecuteReader();
-                if (dr.HasRows)
+                string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), DBName);
+                using (SqlConnection sqlConn = new SqlConnection(connectionString))
                 {
-                    while (dr.Read())
-                    {
-                        if (dr[0] != DBNull.Value)
-                            maxUTC = dr.GetDateTime(0);
-                    }
-                }
-                dr.Close();
-            }
+                    sqlConn.Open();
 
-            return maxUTC;
+                    SqlCommand sqlCmd = new SqlCommand($"SELECT MAX(UTC) FROM {AMSDB.TABLE_JRN[firstTblIdx]}", sqlConn);
+                    SqlDataReader dr = sqlCmd.ExecuteReader();
+                    if (dr.HasRows)
+                    {
+                        while (dr.Read())
+                        {
+                            if (dr[0] != DBNull.Value)
+                                maxUTC = dr.GetDateTime(0);
+                        }
+                    }
+                    dr.Close();
+                }
+
+                return maxUTC;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"{ex.Message} [{ex.SrcInfo()}]");
+            }
         }
 
         // POST api/AmsJournal
         [HttpPost]
-        public IActionResult AmsJournal([FromBody] string value, string bufferHash)
+        public async Task<IActionResult> AmsJournal()
+        {
+            using (StreamReader reader = new StreamReader(Request.Body, Encoding.UTF8))
+            {
+                string zippedData = await reader.ReadToEndAsync();
+                return AddJournal(zippedData);
+            }
+        }
+
+        private IActionResult AddJournal(string zippedData)
         {
             Buffer_Journal journalBuffer;
 
             try
             {
-                journalBuffer = new Buffer_Journal(value, Request.Headers["Data-Hash"]);
-                if (journalBuffer.DBName == "")
-                {
-                    _logger.LogWarning($"new Buffer_Journal Hash Error({Request.Headers["DBName"]})");
-                    return Ok("Hash Error");
-                }
+                journalBuffer = new Buffer_Journal(zippedData, Request.Headers["Data-Hash"]);
             }
             catch (Exception e)
             {
-                _logger.LogError($"new Buffer_Journal exception({Request.Headers["DBName"]}): " + e.Message);
-                return Ok("new Buffer_Journal exception: " + e.Message);
+                Response rsp = new Response(RESULT.NEW_BUFFER, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
             try
@@ -112,11 +114,12 @@ namespace AMS_WebAPI.Controllers
             }
             catch (Exception e)
             {
-                _logger.LogError($"AddJournal_SQL exception({Request.Headers["DBName"]}): " + e.Message);
-                return Ok("AddJournal_SQL exception: " + e.Message);
+                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
-            return Ok("Success");
+            return Ok();
         }
 
         private void AddJournal_SQL(string DBName, DateTime UTC, List<short> chIdList, List<short> chValList)
@@ -179,7 +182,7 @@ namespace AMS_WebAPI.Controllers
 
                     transaction.Commit();
                 }
-                catch
+                catch (Exception ex)
                 {
                     try
                     {
@@ -187,8 +190,10 @@ namespace AMS_WebAPI.Controllers
                     }
                     catch (Exception ex2)
                     {
-                        throw new Exception("Failed to rollback.", ex2);
+                        throw new Exception($"Failed to rollback. {ex2.Message} [{ex.SrcInfo()}]");
                     }
+
+                    throw new Exception($"{ex.Message} [{ex.SrcInfo()}]");
                 }
             }
         }

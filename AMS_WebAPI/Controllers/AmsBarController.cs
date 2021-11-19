@@ -1,10 +1,16 @@
-﻿using API.Common.AMS;
+﻿using AMS_WebAPI.Models;
+using API.Common.AMS;
 using API.Common.DB;
+using API.Common.WebAPI;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
+using System.IO;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace AMS_WebAPI.Controllers
 {
@@ -22,24 +28,29 @@ namespace AMS_WebAPI.Controllers
         }
 
         // POST api/AmsBar
-        [HttpPost]
-        public IActionResult PostAmsBar([FromBody] string value)
+        [HttpPost]        
+        public async Task<IActionResult> PostAmsBar()
+        {
+            using (StreamReader reader = new StreamReader(Request.Body, Encoding.UTF8))
+            {
+                string zippedData = await reader.ReadToEndAsync();
+                return UpdateBar(zippedData);
+            }
+        }
+        
+        private IActionResult UpdateBar(string value)
         {
             Buffer_Bar barBuffer;
 
             try
             {
                 barBuffer = new Buffer_Bar(value, Request.Headers["Data-Hash"]);
-                if (barBuffer.DBName == "")
-                {
-                    _logger.LogWarning($"new Buffer_Bar Hash Error({Request.Headers["DBName"]})");
-                    return Ok("Hash Error");
-                }
             }
             catch (Exception e)
             {
-                _logger.LogError($"new Buffer_Bar exception({Request.Headers["DBName"]}): " + e.Message);
-                return Ok("new Buffer_Bar exception: " + e.Message);
+                Response rsp = new Response(RESULT.NEW_BUFFER, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
             try
@@ -48,11 +59,12 @@ namespace AMS_WebAPI.Controllers
             }
             catch (Exception e)
             {
-                _logger.LogError($"UpdateBar_SQL exception({Request.Headers["DBName"]}): " + e.Message);
-                return Ok("UpdateBar_SQL exception: " + e.Message);
+                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
-            return Ok("Success");
+            return Ok();
         }
 
         private void UpdateBar_SQL(Buffer_Bar barBuffer)
@@ -112,7 +124,7 @@ namespace AMS_WebAPI.Controllers
 
                     transaction.Commit();
                 }
-                catch
+                catch (Exception ex)
                 {
                     try
                     {
@@ -120,8 +132,10 @@ namespace AMS_WebAPI.Controllers
                     }
                     catch (Exception ex2)
                     {
-                        throw new Exception("Failed to rollback.", ex2);
+                        throw new Exception($"Failed to rollback. {ex2.Message} [{ex.SrcInfo()}]");
                     }
+
+                    throw new Exception($"{ex.Message} [{ex.SrcInfo()}]");
                 }
             }
         }

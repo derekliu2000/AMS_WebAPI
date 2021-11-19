@@ -1,12 +1,18 @@
-﻿using API.Common.AMS;
+﻿using AMS_WebAPI.Models;
+using API.Common.AMS;
 using API.Common.DB;
+using API.Common.WebAPI;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace AMS_WebAPI.Controllers
 {
@@ -23,81 +29,78 @@ namespace AMS_WebAPI.Controllers
             _configuration = configuration;
         }
 
-        [HttpGet("RMSMaxUTC")]
-        public IActionResult GetRMSMaxUTC(string p)
+        [HttpGet]
+        public IActionResult GetRMSMaxUTC()
         {
-            MaxUTCBuffer maxUTCBuffer;
-
             try
             {
-                maxUTCBuffer = new MaxUTCBuffer(p, Request.Headers["Data-Hash"]);
-                if (maxUTCBuffer.DBName == "")
-                {
-                    _logger.LogWarning($"new MaxUTCBuffer Hash Error({Request.Headers["DBName"]})");
-                    return Ok("Hash Error");
-                }
+                DateTime maxUTC = GetRMSMaxUTC_SQL(Request.Headers["DBName"], Convert.ToInt32(Request.Headers["Param"]));
+                return Ok(maxUTC);
             }
             catch (Exception e)
             {
-                _logger.LogError($"new MaxUTCBuffer exception in GetRMSMaxUTC({Request.Headers["DBName"]}): " + e.Message);
-                return BadRequest("new MaxUTCBuffer exception in GetRMSMaxUTC: " + e.Message);
+                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
+        }
 
+        private DateTime GetRMSMaxUTC_SQL(string DBName, int tblIdx)
+        {
             try
             {
-                DateTime maxUTC = GetRMSMaxUTC_SQL(maxUTCBuffer);
-                return Ok(maxUTC);
+                DateTime maxUTC = DateTime.MinValue;
+
+                string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), DBName);
+                using (SqlConnection sqlConn = new SqlConnection(connectionString))
+                {
+                    sqlConn.Open();
+
+                    SqlCommand sqlCmd = new SqlCommand($"SELECT MAX(UTC) FROM {AMSDB.TABLE_RMS[tblIdx]}", sqlConn);
+                    SqlDataReader dr = sqlCmd.ExecuteReader();
+                    if (dr.HasRows)
+                    {
+                        while (dr.Read())
+                        {
+                            if (dr[0] != DBNull.Value)
+                                maxUTC = dr.GetDateTime(0);
+                        }
+                    }
+                    dr.Close();
+                }
+
+                return maxUTC;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Get RMS Max UTC from DB exception({Request.Headers["DBName"]}): " + ex.Message);
-                return BadRequest("Get RMS Max UTC from DB exception: " + ex.Message);
+                throw new Exception($"{ex.Message} [{ex.SrcInfo()}]");
             }
         }
 
-        private DateTime GetRMSMaxUTC_SQL(MaxUTCBuffer maxUTCBuffer)
-        {
-            DateTime maxUTC = DateTime.MinValue;
-
-            string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), maxUTCBuffer.DBName);
-            using (SqlConnection sqlConn = new SqlConnection(connectionString))
-            {
-                sqlConn.Open();
-
-                SqlCommand sqlCmd = new SqlCommand($"SELECT MAX(UTC) FROM {AMSDB.TABLE_RMS[maxUTCBuffer.tblIdx]}", sqlConn);
-                SqlDataReader dr = sqlCmd.ExecuteReader();
-                if (dr.HasRows)
-                {
-                    while (dr.Read())
-                    {
-                        if (dr[0] != DBNull.Value)
-                            maxUTC = dr.GetDateTime(0);
-                    }
-                }
-                dr.Close();
-            }
-
-            return maxUTC;
-        }
-
+        // POST api/AmsBar
         [HttpPost("AddRMSBlocks")]
-        public IActionResult AddRMSBlocks([FromBody] string value)
+        public async Task<IActionResult> AddRMSBlocks()
+        {
+            using (StreamReader reader = new StreamReader(Request.Body, Encoding.UTF8))
+            {
+                string zippedData = await reader.ReadToEndAsync();
+                return UpdateRMSBlocks(zippedData);
+            }
+        }
+        
+        private IActionResult UpdateRMSBlocks(string zippedData)
         {
             Buffer_RMS rmsBuffer;
 
             try
             {
-                rmsBuffer = new Buffer_RMS(value, Request.Headers["Data-Hash"]);
-                if (rmsBuffer.DBName == "")
-                {
-                    _logger.LogWarning($"new Buffer_RMS Hash Error({Request.Headers["DBName"]})");
-                    return Ok("Hash Error");
-                }
+                rmsBuffer = new Buffer_RMS(zippedData, Request.Headers["Data-Hash"]);
             }
             catch (Exception e)
             {
-                _logger.LogError($"new Buffer_RMS exception({Request.Headers["DBName"]}): " + e.Message);
-                return Ok("new Buffer_RMS exception: " + e.Message);
+                Response rsp = new Response(RESULT.NEW_BUFFER, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
             try
@@ -115,12 +118,13 @@ namespace AMS_WebAPI.Controllers
                     }
                 }
 
-                return Ok("Success");
+                return Ok();
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                _logger.LogError($"AddOneRMSBlock exception({Request.Headers["DBName"]}): " + ex.Message);
-                return BadRequest(ex.Message);
+                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
         }
 
@@ -220,10 +224,12 @@ namespace AMS_WebAPI.Controllers
                     {
                         transaction.Rollback();
                     }
-                    catch
+                    catch (Exception ex2)
                     {
-
+                        throw new Exception($"Roll back failed. {ex2.Message} [{ex.SrcInfo()}]");
                     }
+
+                    throw new Exception($"{ex.Message} [{ex.SrcInfo()}]");
                 }
             }
         }

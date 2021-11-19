@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using AMS_WebAPI.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -8,6 +10,8 @@ using System.Threading.Tasks;
 namespace AMS_WebAPI.Controllers
 {
     [ApiController]
+    //[Authorize]
+    //[Authorize(Roles = UserRoles.DataSync_User)]
     [Route("[controller]")]
     public class WeatherForecastController : ControllerBase
     {

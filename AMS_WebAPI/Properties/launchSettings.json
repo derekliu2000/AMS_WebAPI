@@ -4,7 +4,7 @@
     "anonymousAuthentication": true,
     "iisExpress": {
       "applicationUrl": "http://localhost:11807",
-      "sslPort": 44316
+      "sslPort": 44326
     }
   },
   "$schema": "http://json.schemastore.org/launchsettings.json",
@@ -12,11 +12,11 @@
     "IIS Express": {
       "commandName": "IISExpress",
       "launchBrowser": true,
-      "launchURL": "swagger",
-      //"launchUrl": "weatherforecast",
+      "launchUrl": "swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      }
+      },
+      "launchURL": "swagger"
     },
     "AMS_WebAPI": {
       "commandName": "Project",

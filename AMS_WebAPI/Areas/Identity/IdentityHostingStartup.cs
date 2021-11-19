@@ -1,9 +1,7 @@
-﻿using System;
-using AMS_WebAPI.Areas.Identity.Data;
+﻿using AMS_WebAPI.Areas.Identity.Data;
 using AMS_WebAPI.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,8 +18,9 @@ namespace AMS_WebAPI.Areas.Identity
                     options.UseSqlServer(
                         context.Configuration.GetConnectionString("AMS_WebAPIContextConnection")));
 
-                services.AddDefaultIdentity<AMS_WebAPIUser>(options => options.SignIn.RequireConfirmedAccount = true)
-                    .AddEntityFrameworkStores<AMS_WebAPIContext>();
+                services.AddIdentity<AMS_WebAPIUser, IdentityRole>()
+                        .AddEntityFrameworkStores<AMS_WebAPIContext>()
+                        .AddDefaultTokenProviders();
             });
         }
     }

@@ -1,9 +1,15 @@
-﻿using API.Common.AMS;
+﻿using AMS_WebAPI.Models;
+using API.Common.AMS;
+using API.Common.WebAPI;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
+using System.IO;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace AMS_WebAPI.Controllers
 {
@@ -22,23 +28,28 @@ namespace AMS_WebAPI.Controllers
 
         // POST api/<AmsStatController>
         [HttpPost]
-        public IActionResult PostAmsStat([FromBody] string value)
+        public async Task<IActionResult> PostAmsStat()
+        {
+            using (StreamReader reader = new StreamReader(Request.Body, Encoding.UTF8))
+            {
+                string zippedData = await reader.ReadToEndAsync();
+                return UpdateAmsStat(zippedData);
+            }
+        }
+
+        private IActionResult UpdateAmsStat(string zippedData)
         {
             Buffer_Stat statBuffer;
 
             try
             {
-                statBuffer = new Buffer_Stat(value, Request.Headers["Data-Hash"]);
-                if (statBuffer.DBName == "")
-                {
-                    _logger.LogWarning($"new Buffer_SpecRef Hash Error({Request.Headers["DBName"]})");
-                    return Ok("Hash Error");
-                }
+                statBuffer = new Buffer_Stat(zippedData, Request.Headers["Data-Hash"]);
             }
             catch (Exception e)
             {
-                _logger.LogError($"new Buffer_Stat exception({Request.Headers["DBName"]}): " + e.Message);
-                return Ok("new Buffer_Stat exception: " + e.Message);
+                Response rsp = new Response(RESULT.NEW_BUFFER, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
             try
@@ -47,45 +58,53 @@ namespace AMS_WebAPI.Controllers
             }
             catch (Exception e)
             {
-                _logger.LogError($"UpdateStat_SQL exception({Request.Headers["DBName"]}): " + e.Message);
-                return Ok("UpdateStat_SQL exception: " + e.Message);
+                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
-            return Ok("Success");
+            return Ok();
         }
 
         private void UpdateStat_SQL(Buffer_Stat statBuffer)
         {
-            string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), statBuffer.DBName);
-            using (SqlConnection sqlConn = new SqlConnection(connectionString))
+            try
             {
-                sqlConn.Open();
-
-                SqlCommand sqlCmd = new SqlCommand();
-                sqlCmd.Connection = sqlConn;
-
-                for (int i = 0; i < statBuffer.chIdxList.Count; i++)
+                string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), statBuffer.DBName);
+                using (SqlConnection sqlConn = new SqlConnection(connectionString))
                 {
-                    try
+                    sqlConn.Open();
+
+                    SqlCommand sqlCmd = new SqlCommand();
+                    sqlCmd.Connection = sqlConn;
+
+                    for (int i = 0; i < statBuffer.chIdxList.Count; i++)
                     {
-                        sqlCmd.Parameters.Clear();
-                        sqlCmd.CommandText = "IF EXISTS (SELECT * FROM AMS_Stat WHERE ChannelIdx=@chIdx) " +
-                                             "UPDATE AMS_Stat SET AFBIdx=@AFBIdx,AFBJID=@AFBJID,CapRef=@CapRef,CapMeasured=@CapMeasured,AFBTemp=@AFBTemp WHERE ChannelIdx=@chIdx " +
-                                             "ELSE " +
-                                             "INSERT INTO AMS_Stat (AFBIdx,AFBJID,ChannelIdx,CapRef,CapMeasured,AFBTemp) VALUES (@AFBIdx,@AFBJID,@chIdx,@CapRef,@CapMeasured,@AFBTemp)";
-                        sqlCmd.Parameters.AddWithValue("@AFBIdx", statBuffer.AFBIdxList[i]);
-                        sqlCmd.Parameters.AddWithValue("@AFBJID", statBuffer.AFBJIDList[i]);
-                        sqlCmd.Parameters.AddWithValue("@chIdx", statBuffer.chIdxList[i]);
-                        sqlCmd.Parameters.AddWithValue("@CapRef", statBuffer.refList[i]);
-                        sqlCmd.Parameters.AddWithValue("@CapMeasured", statBuffer.measList[i]);
-                        sqlCmd.Parameters.AddWithValue("@AFBTemp", statBuffer.tempList[i]);
-                        sqlCmd.ExecuteNonQuery();
-                    }
-                    catch
-                    {
-                        continue;
+                        try
+                        {
+                            sqlCmd.Parameters.Clear();
+                            sqlCmd.CommandText = "IF EXISTS (SELECT * FROM AMS_Stat WHERE ChannelIdx=@chIdx) " +
+                                                 "UPDATE AMS_Stat SET AFBIdx=@AFBIdx,AFBJID=@AFBJID,CapRef=@CapRef,CapMeasured=@CapMeasured,AFBTemp=@AFBTemp WHERE ChannelIdx=@chIdx " +
+                                                 "ELSE " +
+                                                 "INSERT INTO AMS_Stat (AFBIdx,AFBJID,ChannelIdx,CapRef,CapMeasured,AFBTemp) VALUES (@AFBIdx,@AFBJID,@chIdx,@CapRef,@CapMeasured,@AFBTemp)";
+                            sqlCmd.Parameters.AddWithValue("@AFBIdx", statBuffer.AFBIdxList[i]);
+                            sqlCmd.Parameters.AddWithValue("@AFBJID", statBuffer.AFBJIDList[i]);
+                            sqlCmd.Parameters.AddWithValue("@chIdx", statBuffer.chIdxList[i]);
+                            sqlCmd.Parameters.AddWithValue("@CapRef", statBuffer.refList[i]);
+                            sqlCmd.Parameters.AddWithValue("@CapMeasured", statBuffer.measList[i]);
+                            sqlCmd.Parameters.AddWithValue("@AFBTemp", statBuffer.tempList[i]);
+                            sqlCmd.ExecuteNonQuery();
+                        }
+                        catch
+                        {
+                            continue;
+                        }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"{ex.Message} [{ex.SrcInfo()}]");
             }
         }
     }
