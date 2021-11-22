@@ -1,6 +1,5 @@
 ﻿using AMS_WebAPI.Models;
 using API.Common.AMS;
-using API.Common.IO;
 using API.Common.Utils;
 using API.Common.WebAPI;
 using Microsoft.AspNetCore.Http;
@@ -27,53 +26,6 @@ namespace AMS_WebAPI.Controllers
         {
             _logger = logger;
             _configuration = configuration;
-        }
-
-        [HttpGet]
-        public IActionResult GetSensorLocBinary()
-        {
-            try
-            {
-                return Ok(GetSensorLocBinary_SQL(Request.Headers["DBName"]));
-            }
-            catch (Exception e)
-            {
-                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
-                _logger.LogError(rsp.ToString());
-                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
-            }
-        }
-
-        private byte[] GetSensorLocBinary_SQL(string DBName)
-        {
-            try
-            {
-                string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), DBName);
-                using (SqlConnection sqlConn = new SqlConnection(connectionString))
-                {
-                    sqlConn.Open();
-
-                    SqlCommand sqlCmd = new SqlCommand();
-                    sqlCmd.Connection = sqlConn;
-
-                    DataSet ds = new DataSet();
-                    sqlCmd.CommandText = "SELECT TOP 1 SensorLoc FROM AMS_SensorLocBinary ORDER BY UTC DESC";
-                    SqlDataAdapter dataAdapter = new SqlDataAdapter(sqlCmd);
-                    dataAdapter.Fill(ds);
-
-                    if (ds != null && ds.Tables.Count > 0 && ds.Tables[0].Rows.Count > 0 && ds.Tables[0].Rows[0][0] != DBNull.Value)
-                    {
-                        byte[] data = (byte[])ds.Tables[0].Rows[0][0];
-                        return data;
-                    }
-
-                    return null;
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"{ex.Message} [{ex.SrcInfo()}]");
-            }
         }
 
         // POST api/AmsSensorLoc
@@ -128,18 +80,23 @@ namespace AMS_WebAPI.Controllers
                     SqlCommand sqlCmd = new SqlCommand();
                     sqlCmd.Connection = sqlConn;
 
+                    // AMS_SensorLocBinary
                     sqlCmd.Parameters.Clear();
                     sqlCmd.CommandText = "IF NOT EXISTS (SELECT * FROM AMS_SensorLocBinary WHERE UTC=@UTC) INSERT INTO AMS_SensorLocBinary (UTC, SensorLoc) VALUES (@UTC, @SensorLoc)";
                     sqlCmd.Parameters.AddWithValue("@UTC", sensorLocBuffer.sensorLocLastWriteUTC);
                     sqlCmd.Parameters.Add("@SensorLoc", SqlDbType.VarBinary, sensorLocBuffer.binaryCompressedFile.Length).Value = sensorLocBuffer.binaryCompressedFile;
+                    sqlCmd.ExecuteNonQuery();
 
+                    // AMS_SensorLocation
+                    sqlCmd.Parameters.Clear();
+                    sqlCmd.CommandText = "DELETE AMS_SensorLocation WHERE UTC=@UTC";
+                    sqlCmd.Parameters.AddWithValue("@UTC", sensorLocBuffer.sensorLocLastWriteUTC);
                     sqlCmd.ExecuteNonQuery();
 
                     for (int i = 0; i < sensorLocBuffer.sensorChIdxList.Count; i++)
                     {
                         sqlCmd.Parameters.Clear();
-                        sqlCmd.CommandText = "IF NOT EXISTS (SELECT * FROM AMS_SensorLocation WHERE UTC=@UTC AND SensorID=@SensorID) " +
-                                             "INSERT INTO AMS_SensorLocation (UTC, SensorID, xLoc, yLoc, Label, Type, IsInFront) " +
+                        sqlCmd.CommandText = "INSERT INTO AMS_SensorLocation (UTC, SensorID, xLoc, yLoc, Label, Type, IsInFront) " +
                                              "VALUES (@UTC, @SensorID, @xLoc, @yLoc, @Label, @Type, @IsInFront)";
                         sqlCmd.Parameters.AddWithValue("@UTC", sensorLocBuffer.sensorLocLastWriteUTC);
                         sqlCmd.Parameters.AddWithValue("@SensorID", sensorLocBuffer.sensorChIdxList[i] + 1);
@@ -148,7 +105,6 @@ namespace AMS_WebAPI.Controllers
                         sqlCmd.Parameters.AddWithValue("@Label", sensorLocBuffer.senTxtList[i]);
                         sqlCmd.Parameters.AddWithValue("@Type", sensorLocBuffer.senTypsList[i]);
                         sqlCmd.Parameters.AddWithValue("@IsInFront", sensorLocBuffer.blnFrontList[i]);
-
                         sqlCmd.ExecuteNonQuery();
                     }
                 }
