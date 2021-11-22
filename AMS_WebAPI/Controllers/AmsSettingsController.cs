@@ -1,6 +1,5 @@
 ﻿using AMS_WebAPI.Models;
 using API.Common.AMS;
-using API.Common.IO;
 using API.Common.Utils;
 using API.Common.WebAPI;
 using Microsoft.AspNetCore.Http;
@@ -11,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Data;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -72,7 +72,7 @@ namespace AMS_WebAPI.Controllers
         {
             try
             {
-                string DBHashString = "";
+                byte[] byteLatestSettingsInDB = null;
                 string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), settingBuffer.DBName);
                 using (SqlConnection sqlConn = new SqlConnection(connectionString))
                 {
@@ -82,17 +82,17 @@ namespace AMS_WebAPI.Controllers
                     sqlCmd.Connection = sqlConn;
 
                     DataSet ds = new DataSet();
-                    sqlCmd.CommandText = "SELECT TOP 1 Settings FROM AMS_Settings ORDER BY LastUpdateUTC DESC";
+                    sqlCmd.CommandText = "SELECT TOP 1 Settings FROM AMS_Settings ORDER BY LastUpdateUTC DESC,ID DESC";
                     SqlDataAdapter dataAdapter = new SqlDataAdapter(sqlCmd);
                     dataAdapter.Fill(ds);
 
                     if (ds != null && ds.Tables.Count > 0 && ds.Tables[0].Rows.Count > 0 && ds.Tables[0].Rows[0][0] != DBNull.Value)
                     {
-                        byte[] data = (byte[])ds.Tables[0].Rows[0][0];
-                        DBHashString = ArrayOperate.GetArrayHashString(data);
+                        byteLatestSettingsInDB = (byte[])ds.Tables[0].Rows[0][0];
                     }
 
-                    if (DBHashString != settingBuffer.checkSum)
+                    if (byteLatestSettingsInDB == null ||
+                        byteLatestSettingsInDB.SequenceEqual(settingBuffer.binaryZippedSettings) == false)
                     {
                         sqlCmd.Parameters.Clear();
                         sqlCmd.CommandText = "INSERT INTO AMS_Settings (Settings,LastUpdateUTC) VALUES (@newSettings,@LastUpdateUTC)";
