@@ -2,6 +2,7 @@
 using API.Common.AMS;
 using API.Common.DB;
 using API.Common.WebAPI;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -16,6 +17,7 @@ namespace AMS_WebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class AmsBarController : ControllerBase
     {
         private readonly ILogger<AmsBarController> _logger;
@@ -40,26 +42,40 @@ namespace AMS_WebAPI.Controllers
         
         private IActionResult UpdateBar(string value)
         {
-            Buffer_Bar barBuffer;
+            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            if (id.Status != RESULT.SUCCESS)
+            {
+                _logger.LogError(id.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, id);
+            }
+
+            Buffer_Bar buffer;
 
             try
             {
-                barBuffer = new Buffer_Bar(value, Request.Headers["Data-Hash"]);
+                buffer = new Buffer_Bar(value, Request.Headers["Data-Hash"]);
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.NEW_BUFFER, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.NEW_BUFFER, id.DB, Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
+            }
+
+            if (id.DB.ToUpper() != buffer.DBName.ToUpper())
+            {
+                Response rsp = new Response(RESULT.DBNAME_NOT_MATCH, buffer.DBName, Request.Headers["Host"], $"idDBName: {id.DB}; bufferDBName: {buffer.DBName}");
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
             try
             {
-                UpdateBar_SQL(barBuffer);
+                UpdateBar_SQL(buffer);
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.RUN_SQL, id.DB, Request.Headers["Host"], e.Message);
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }

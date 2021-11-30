@@ -2,7 +2,9 @@
 using API.Common.AMS;
 using API.Common.DB;
 using API.Common.IO;
+using API.Common.Utils;
 using API.Common.WebAPI;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -20,6 +22,7 @@ namespace AMS_WebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class AmsDTAController : ControllerBase
     {
         private readonly ILogger<AmsDTAController> _logger;
@@ -38,6 +41,13 @@ namespace AMS_WebAPI.Controllers
             List<int> DTAFileIdxList;
             Dictionary<int, List<DateTime>> dic;
 
+            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            if (id.Status != RESULT.SUCCESS)
+            {
+                _logger.LogError(id.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, id);
+            }
+
             try
             {
                 strDTAFileIdxList = Request.Headers["Param"].ToString().Split(',');
@@ -45,18 +55,35 @@ namespace AMS_WebAPI.Controllers
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.GET_PARAM, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.GET_PARAM, id.DB, Request.Headers["Host"], e.Message);
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
             try
             {
-                dic = GetDTAMaxUTC_SQL(Request.Headers["DBName"], DTAFileIdxList);
+                string DBName = Rijndael.Decrypt(Request.Headers["DBName"], Rijndael.EP_PASSPHRASE, Rijndael.EP_SALTVALUE, Rijndael.EP_HASHALGORITHM, Rijndael.EP_PASSWORDITERATIONS, Rijndael.EP_INITVECTOR, Rijndael.EP_KEYSIZE);
+                if (id.DB.ToUpper() != DBName.ToUpper())
+                {
+                    Response rsp = new Response(RESULT.DBNAME_NOT_MATCH, DBName, Request.Headers["Host"], $"idDBName: {id.DB}; headDBName: {DBName}");
+                    _logger.LogError(rsp.ToString());
+                    return StatusCode(StatusCodes.Status500InternalServerError, rsp);
+                }
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.DECRYPT_DB_NAME, id.DB, Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
+            }
+
+            try
+            {
+                dic = GetDTAMaxUTC_SQL(id.DB, DTAFileIdxList);
+            }
+            catch (Exception e)
+            {
+                Response rsp = new Response(RESULT.RUN_SQL, id.DB, Request.Headers["Host"], e.Message);
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
@@ -69,7 +96,7 @@ namespace AMS_WebAPI.Controllers
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.SET_VALUE, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.SET_VALUE, id.DB, Request.Headers["Host"], e.Message);
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
@@ -137,32 +164,46 @@ namespace AMS_WebAPI.Controllers
         }        
         private IActionResult AddWaveRecord(string zippedData)
         {
-            Buffer_DTA DTABuffer;
+            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            if (id.Status != RESULT.SUCCESS)
+            {
+                _logger.LogError(id.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, id);
+            }
+
+            Buffer_DTA buffer;
 
             try
             {
-                DTABuffer = new Buffer_DTA(zippedData, Request.Headers["Data-Hash"]);
+                buffer = new Buffer_DTA(zippedData, Request.Headers["Data-Hash"]);
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.NEW_BUFFER, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.NEW_BUFFER, id.DB, Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
+            }
+
+            if (id.DB.ToUpper() != buffer.DBName.ToUpper())
+            {
+                Response rsp = new Response(RESULT.DBNAME_NOT_MATCH, buffer.DBName, Request.Headers["Host"], $"idDBName: {id.DB}; bufferDBName: {buffer.DBName}");
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
             try
             {
-                for (int i = 0; i < DTABuffer.WDList.Count; i++)
+                for (int i = 0; i < buffer.WDList.Count; i++)
                 {
-                    WaveData wd = DTABuffer.WDList[i];
-                    AddWaveRecord_SQL(DTABuffer.DBName, wd.Idx, wd.flag, wd.UTC, wd.data);
+                    WaveData wd = buffer.WDList[i];
+                    AddWaveRecord_SQL(buffer.DBName, wd.Idx, wd.flag, wd.UTC, wd.data);
                 }
 
                 return Ok();
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.RUN_SQL, id.DB, Request.Headers["Host"], e.Message);
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }

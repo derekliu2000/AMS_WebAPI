@@ -1,6 +1,7 @@
 ﻿using AMS_WebAPI.Models;
 using API.Common.AMS;
 using API.Common.WebAPI;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -15,6 +16,7 @@ namespace AMS_WebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class AmsStatController : ControllerBase
     {
         private readonly ILogger<AmsStatController> _logger;
@@ -39,26 +41,40 @@ namespace AMS_WebAPI.Controllers
 
         private IActionResult UpdateAmsStat(string zippedData)
         {
-            Buffer_Stat statBuffer;
+            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            if (id.Status != RESULT.SUCCESS)
+            {
+                _logger.LogError(id.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, id);
+            }
+
+            Buffer_Stat buffer;
 
             try
             {
-                statBuffer = new Buffer_Stat(zippedData, Request.Headers["Data-Hash"]);
+                buffer = new Buffer_Stat(zippedData, Request.Headers["Data-Hash"]);
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.NEW_BUFFER, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.NEW_BUFFER, id.DB, Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
+            }
+
+            if (id.DB.ToUpper() != buffer.DBName.ToUpper())
+            {
+                Response rsp = new Response(RESULT.DBNAME_NOT_MATCH, buffer.DBName, Request.Headers["Host"], $"idDBName: {id.DB}; bufferDBName: {buffer.DBName}");
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
             try
             {
-                UpdateStat_SQL(statBuffer);
+                UpdateStat_SQL(buffer);
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.RUN_SQL, id.DB, Request.Headers["Host"], e.Message);
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }

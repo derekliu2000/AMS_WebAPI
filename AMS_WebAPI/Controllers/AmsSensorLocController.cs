@@ -2,6 +2,7 @@
 using API.Common.AMS;
 using API.Common.Utils;
 using API.Common.WebAPI;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Data;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -17,6 +19,7 @@ namespace AMS_WebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class AmsSensorLocController : ControllerBase
     {
         private readonly ILogger<AmsSensorLocController> _logger;
@@ -41,26 +44,40 @@ namespace AMS_WebAPI.Controllers
 
         private IActionResult AddSensorLoc(string zippedData)
         {
-            Buffer_SensorLoc sensorLocBuffer;
+            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            if (id.Status != RESULT.SUCCESS)
+            {
+                _logger.LogError(id.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, id);
+            }
+
+            Buffer_SensorLoc buffer;
 
             try
             {
-                sensorLocBuffer = new Buffer_SensorLoc(zippedData, Request.Headers["Data-Hash"]);
+                buffer = new Buffer_SensorLoc(zippedData, Request.Headers["Data-Hash"]);
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.NEW_BUFFER, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.NEW_BUFFER, id.DB, Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
+            }
+
+            if (id.DB.ToUpper() != buffer.DBName.ToUpper())
+            {
+                Response rsp = new Response(RESULT.DBNAME_NOT_MATCH, buffer.DBName, Request.Headers["Host"], $"idDBName: {id.DB}; bufferDBName: {buffer.DBName}");
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
             try
             {
-                AddSensorLoc_SQL(sensorLocBuffer);
+                AddSensorLoc_SQL(buffer);
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.RUN_SQL, id.DB, Request.Headers["Host"], e.Message);
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
@@ -72,6 +89,7 @@ namespace AMS_WebAPI.Controllers
         {
             try
             {
+                byte[] byteSensorLoc = null;
                 string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), sensorLocBuffer.DBName);
                 using (SqlConnection sqlConn = new SqlConnection(connectionString))
                 {
@@ -81,31 +99,45 @@ namespace AMS_WebAPI.Controllers
                     sqlCmd.Connection = sqlConn;
 
                     // AMS_SensorLocBinary
-                    sqlCmd.Parameters.Clear();
-                    sqlCmd.CommandText = "IF NOT EXISTS (SELECT * FROM AMS_SensorLocBinary WHERE UTC=@UTC) INSERT INTO AMS_SensorLocBinary (UTC, SensorLoc) VALUES (@UTC, @SensorLoc)";
-                    sqlCmd.Parameters.AddWithValue("@UTC", sensorLocBuffer.sensorLocLastWriteUTC);
-                    sqlCmd.Parameters.Add("@SensorLoc", SqlDbType.VarBinary, sensorLocBuffer.binaryCompressedFile.Length).Value = sensorLocBuffer.binaryCompressedFile;
-                    sqlCmd.ExecuteNonQuery();
+                    DataSet ds = new DataSet();
+                    sqlCmd.CommandText = "SELECT TOP 1 SensorLoc FROM AMS_SensorLocBinary ORDER BY UTC DESC";
+                    SqlDataAdapter dataAdapter = new SqlDataAdapter(sqlCmd);
+                    dataAdapter.Fill(ds);
 
-                    // AMS_SensorLocation
-                    sqlCmd.Parameters.Clear();
-                    sqlCmd.CommandText = "DELETE AMS_SensorLocation WHERE UTC=@UTC";
-                    sqlCmd.Parameters.AddWithValue("@UTC", sensorLocBuffer.sensorLocLastWriteUTC);
-                    sqlCmd.ExecuteNonQuery();
+                    if (ds != null && ds.Tables.Count > 0 && ds.Tables[0].Rows.Count > 0 && ds.Tables[0].Rows[0][0] != DBNull.Value)
+                    {
+                        byteSensorLoc = (byte[])ds.Tables[0].Rows[0][0];
+                    }
 
-                    for (int i = 0; i < sensorLocBuffer.sensorChIdxList.Count; i++)
+                    if (byteSensorLoc == null ||
+                        byteSensorLoc.SequenceEqual(sensorLocBuffer.binaryCompressedFile) == false)
                     {
                         sqlCmd.Parameters.Clear();
-                        sqlCmd.CommandText = "INSERT INTO AMS_SensorLocation (UTC, SensorID, xLoc, yLoc, Label, Type, IsInFront) " +
-                                             "VALUES (@UTC, @SensorID, @xLoc, @yLoc, @Label, @Type, @IsInFront)";
+                        sqlCmd.CommandText = "INSERT INTO AMS_SensorLocBinary (UTC, SensorLoc) VALUES (@UTC, @SensorLoc)";
                         sqlCmd.Parameters.AddWithValue("@UTC", sensorLocBuffer.sensorLocLastWriteUTC);
-                        sqlCmd.Parameters.AddWithValue("@SensorID", sensorLocBuffer.sensorChIdxList[i] + 1);
-                        sqlCmd.Parameters.AddWithValue("@xLoc", sensorLocBuffer.xLocList[i]);
-                        sqlCmd.Parameters.AddWithValue("@yLoc", sensorLocBuffer.yLocList[i]);
-                        sqlCmd.Parameters.AddWithValue("@Label", sensorLocBuffer.senTxtList[i]);
-                        sqlCmd.Parameters.AddWithValue("@Type", sensorLocBuffer.senTypsList[i]);
-                        sqlCmd.Parameters.AddWithValue("@IsInFront", sensorLocBuffer.blnFrontList[i]);
+                        sqlCmd.Parameters.Add("@SensorLoc", SqlDbType.VarBinary, sensorLocBuffer.binaryCompressedFile.Length).Value = sensorLocBuffer.binaryCompressedFile;
                         sqlCmd.ExecuteNonQuery();
+
+                        // AMS_SensorLocation
+                        sqlCmd.Parameters.Clear();
+                        sqlCmd.CommandText = "DELETE AMS_SensorLocation WHERE UTC=@UTC";
+                        sqlCmd.Parameters.AddWithValue("@UTC", sensorLocBuffer.sensorLocLastWriteUTC);
+                        sqlCmd.ExecuteNonQuery();
+
+                        for (int i = 0; i < sensorLocBuffer.sensorChIdxList.Count; i++)
+                        {
+                            sqlCmd.Parameters.Clear();
+                            sqlCmd.CommandText = "INSERT INTO AMS_SensorLocation (UTC, SensorID, xLoc, yLoc, Label, Type, IsInFront) " +
+                                                 "VALUES (@UTC, @SensorID, @xLoc, @yLoc, @Label, @Type, @IsInFront)";
+                            sqlCmd.Parameters.AddWithValue("@UTC", sensorLocBuffer.sensorLocLastWriteUTC);
+                            sqlCmd.Parameters.AddWithValue("@SensorID", sensorLocBuffer.sensorChIdxList[i] + 1);
+                            sqlCmd.Parameters.AddWithValue("@xLoc", sensorLocBuffer.xLocList[i]);
+                            sqlCmd.Parameters.AddWithValue("@yLoc", sensorLocBuffer.yLocList[i]);
+                            sqlCmd.Parameters.AddWithValue("@Label", sensorLocBuffer.senTxtList[i]);
+                            sqlCmd.Parameters.AddWithValue("@Type", sensorLocBuffer.senTypsList[i]);
+                            sqlCmd.Parameters.AddWithValue("@IsInFront", sensorLocBuffer.blnFrontList[i]);
+                            sqlCmd.ExecuteNonQuery();
+                        }
                     }
                 }
             }

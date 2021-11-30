@@ -1,7 +1,9 @@
 ﻿using AMS_WebAPI.Models;
 using API.Common.AMS;
 using API.Common.DB;
+using API.Common.Utils;
 using API.Common.WebAPI;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -18,6 +20,7 @@ namespace AMS_WebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class AmsRMSController : ControllerBase
     {
         private readonly ILogger<AmsRMSController> _logger;
@@ -32,14 +35,38 @@ namespace AMS_WebAPI.Controllers
         [HttpGet]
         public IActionResult GetRMSMaxUTC()
         {
+            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            if (id.Status != RESULT.SUCCESS)
+            {
+                _logger.LogError(id.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, id);
+            }
+
             try
             {
-                DateTime maxUTC = GetRMSMaxUTC_SQL(Request.Headers["DBName"], Convert.ToInt32(Request.Headers["Param"]));
+                string DBName = Rijndael.Decrypt(Request.Headers["DBName"], Rijndael.EP_PASSPHRASE, Rijndael.EP_SALTVALUE, Rijndael.EP_HASHALGORITHM, Rijndael.EP_PASSWORDITERATIONS, Rijndael.EP_INITVECTOR, Rijndael.EP_KEYSIZE);
+                if (id.DB.ToUpper() != DBName.ToUpper())
+                {
+                    Response rsp = new Response(RESULT.DBNAME_NOT_MATCH, DBName, Request.Headers["Host"], $"idDBName: {id.DB}; headDBName: {DBName}");
+                    _logger.LogError(rsp.ToString());
+                    return StatusCode(StatusCodes.Status500InternalServerError, rsp);
+                }
+            }
+            catch (Exception e)
+            {
+                Response rsp = new Response(RESULT.DECRYPT_DB_NAME, id.DB, Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
+            }
+
+            try
+            {
+                DateTime maxUTC = GetRMSMaxUTC_SQL(id.DB, Convert.ToInt32(Request.Headers["Param"]));
                 return Ok(maxUTC);
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.RUN_SQL, id.DB, Request.Headers["Host"], e.Message);
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
@@ -90,31 +117,45 @@ namespace AMS_WebAPI.Controllers
         
         private IActionResult UpdateRMSBlocks(string zippedData)
         {
-            Buffer_RMS rmsBuffer;
+            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            if (id.Status != RESULT.SUCCESS)
+            {
+                _logger.LogError(id.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, id);
+            }
+
+            Buffer_RMS buffer;
 
             try
             {
-                rmsBuffer = new Buffer_RMS(zippedData, Request.Headers["Data-Hash"]);
+                buffer = new Buffer_RMS(zippedData, Request.Headers["Data-Hash"]);
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.NEW_BUFFER, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.NEW_BUFFER, id.DB, Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
+            }
+
+            if (id.DB.ToUpper() != buffer.DBName.ToUpper())
+            {
+                Response rsp = new Response(RESULT.DBNAME_NOT_MATCH, buffer.DBName, Request.Headers["Host"], $"idDBName: {id.DB}; bufferDBName: {buffer.DBName}");
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
             try
             {
-                for (int i = 0; i < rmsBuffer.blockCount; i++)
+                for (int i = 0; i < buffer.blockCount; i++)
                 {
                     DateTime UTC = DateTime.MinValue;
                     List<short> chValList = null;
                     List<short> auxValList = null;
 
-                    Buffer_RMS.GetRMSRecordByIndex(rmsBuffer.rmsBuffer, i, rmsBuffer.chEnList, rmsBuffer.auxEnList, ref UTC, ref chValList, ref auxValList);
+                    Buffer_RMS.GetRMSRecordByIndex(buffer.rmsBuffer, i, buffer.chEnList, buffer.auxEnList, ref UTC, ref chValList, ref auxValList);
                     if (UTC != DateTime.MinValue)
                     {
-                        AddOneRMSBlock(rmsBuffer, UTC, chValList, auxValList);
+                        AddOneRMSBlock(buffer, UTC, chValList, auxValList);
                     }
                 }
 
@@ -122,7 +163,7 @@ namespace AMS_WebAPI.Controllers
             }
             catch (Exception e)
             {
-                Response rsp = new Response(RESULT.RUN_SQL, Request.Headers["DBName"], Request.Headers["Host"], e.Message);
+                Response rsp = new Response(RESULT.RUN_SQL, id.DB, Request.Headers["Host"], e.Message);
                 _logger.LogError(rsp.ToString());
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }

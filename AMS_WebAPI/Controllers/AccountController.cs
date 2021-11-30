@@ -14,7 +14,6 @@ using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Security.Claims;
@@ -35,7 +34,7 @@ namespace AMS_WebAPI.Controllers
         private readonly IConfiguration _configuration;
         private readonly ILogger<AccountController> _logger;
 
-        public AccountController(AMS_WebAPIContext dbContext, 
+        public AccountController(AMS_WebAPIContext dbContext,
                                  UserManager<AMS_WebAPIUser> userManager,
                                  SignInManager<AMS_WebAPIUser> signInManager,
                                  RoleManager<IdentityRole> roleManager,
@@ -65,10 +64,6 @@ namespace AMS_WebAPI.Controllers
         [AllowAnonymous]
         public IActionResult PostTestNoBody_Anonymous()
         {
-            var dd = 0;
-
-            
-
             return Ok(new Response { Status = RESULT.SUCCESS, Msg = "Invoke Test_Anonymous successfully" });
         }
 
@@ -76,8 +71,6 @@ namespace AMS_WebAPI.Controllers
         [AllowAnonymous]
         public IActionResult PostTestWithBody_Anonymous([FromBody] string value)
         {
-            var dd = 0;
-            
             return Ok(new Response { Status = RESULT.SUCCESS, Msg = "Invoke Test_Anonymous successfully" });
         }
 
@@ -85,21 +78,18 @@ namespace AMS_WebAPI.Controllers
         [AllowAnonymous]
         public IActionResult Test_Anonymous([FromHeader] string TestBlock)
         {
-            var dd = 0;
             return Ok(new Response { Status = RESULT.SUCCESS, Msg = "Invoke Test_Anonymous successfully" });
         }
 
         [HttpGet("Test_Authrized")]
         public IActionResult Test_Authrized()
         {
-            var dd = 0;
             return Ok(new Response { Status = RESULT.SUCCESS, Msg = "Invoke Test_Authrized successfully" });
         }
 
         [HttpPost("Post1")]
         public HttpResponseMessage Post1([FromBody] string name)
         {
-            var dd = 0;
             return new HttpResponseMessage(HttpStatusCode.OK);
         }
 
@@ -143,42 +133,80 @@ namespace AMS_WebAPI.Controllers
         [HttpPost]
         [Route("Login")]
         [AllowAnonymous]
-        public async Task<IActionResult> Login([FromBody] LoginModel model)
+        public async Task<IActionResult> PostLogin()
         {
-            var user = await _userManager.FindByNameAsync(model.UserName);
-            if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
+            using (StreamReader reader = new StreamReader(Request.Body, Encoding.UTF8))
             {
-                var userRoles = await _userManager.GetRolesAsync(user);
-                var authClaims = new List<Claim>
-                {
-                    new Claim(ClaimTypes.Name, user.UserName),
-                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-                };
-
-                foreach (var userrole in userRoles)
-                {
-                    authClaims.Add(new Claim(ClaimTypes.Role, userrole));
-                }
-
-                var authSigninKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
-                var token = new JwtSecurityToken(issuer: _configuration["JWT:ValidIssuer"],
-                                                 audience: _configuration["JWT:ValidAudience"],
-                                                 expires: DateTime.Now.AddHours(5),
-                                                 claims: authClaims,
-                                                 signingCredentials: new SigningCredentials(authSigninKey, SecurityAlgorithms.HmacSha256));
-
-                return Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token) });
+                string zippedData = await reader.ReadToEndAsync();
+                return Login(zippedData);
             }
-
-            return Unauthorized();
         }
 
-        [HttpPost]
-        [Route("TestPost")]
-        public IActionResult TestPost()
+        private IActionResult Login(string value)
         {
-            _logger.LogInformation($"Entered TestPost {DateTime.Now.ToShortTimeString()}");
-            return Ok(new Response { Status = RESULT.SUCCESS, Msg = "TestPost successfully" });
+            Response rsp;
+            Buffer_Account_Login loginBuffer = null;
+
+            try
+            {
+                loginBuffer = new Buffer_Account_Login(value, Request.Headers["Data-Hash"]);
+            }
+            catch (Exception e)
+            {
+                if (loginBuffer != null && loginBuffer.DBName != "")
+                    rsp = new Response(RESULT.NEW_BUFFER, loginBuffer.DBName, Request.Headers["Host"], e.Message);
+                else
+                    rsp = new Response(RESULT.NEW_BUFFER, "", Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
+            }
+
+            AMS_WebAPIUser user = _userManager.FindByNameAsync(loginBuffer.UserName).GetAwaiter().GetResult();
+            if (user == null)
+            {
+                rsp = new Response(RESULT.USER_NOT_EXIST, loginBuffer.DBName, Request.Headers["Host"], "User not found.");
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status401Unauthorized, rsp);
+            }
+
+            if (_userManager.CheckPasswordAsync(user, loginBuffer.Password).GetAwaiter().GetResult() == false)
+            {
+                rsp = new Response(RESULT.USER_PSWD_NOT_MATCH, loginBuffer.DBName, Request.Headers["Host"], "Wrong password.");
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status401Unauthorized, rsp);
+            }
+
+            if (user.DBName.Trim().ToUpper() != loginBuffer.DBName.Trim().ToUpper())
+            {
+                rsp = new Response(RESULT.DBNAME_NOT_MATCH, loginBuffer.DBName, Request.Headers["Host"], $"userDBName: {user.DBName}; bufferDBName: {loginBuffer.DBName}");
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status401Unauthorized, rsp);
+            }
+
+            var userRoles = _userManager.GetRolesAsync(user).GetAwaiter().GetResult();
+            var authClaims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.Name, user.UserName),
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                    new Claim("DBName", user.DBName)
+                };
+
+            foreach (var userrole in userRoles)
+            {
+                authClaims.Add(new Claim(ClaimTypes.Role, userrole));
+            }
+
+            var authSigninKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
+            var token = new JwtSecurityToken(issuer: _configuration["JWT:ValidIssuer"],
+                                             audience: _configuration["JWT:ValidAudience"],
+                                             expires: DateTime.Now.AddHours(5),
+                                             claims: authClaims,
+                                             signingCredentials: new SigningCredentials(authSigninKey, SecurityAlgorithms.HmacSha256));
+
+            var strToken = (new JwtSecurityTokenHandler().WriteToken(token)).ToString();
+            rsp = new Response(RESULT.SUCCESS, loginBuffer.DBName, Request.Headers["Host"], strToken);
+            _logger.LogInformation(rsp.ToString());
+            return StatusCode(StatusCodes.Status200OK, rsp);
         }
     }
 }
