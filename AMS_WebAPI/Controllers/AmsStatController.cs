@@ -41,7 +41,7 @@ namespace AMS_WebAPI.Controllers
 
         private IActionResult UpdateAmsStat(string zippedData)
         {
-            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            IdentityResponse id = ControllerUtility.GetDBInfoFromIdentity(HttpContext.User.Identity, Request);
             if (id.Status != RESULT.SUCCESS)
             {
                 _logger.LogError(id.ToString());
@@ -70,7 +70,7 @@ namespace AMS_WebAPI.Controllers
 
             try
             {
-                UpdateStat_SQL(buffer);
+                UpdateStat_SQL(buffer, id);
             }
             catch (Exception e)
             {
@@ -82,11 +82,11 @@ namespace AMS_WebAPI.Controllers
             return Ok();
         }
 
-        private void UpdateStat_SQL(Buffer_Stat statBuffer)
+        private void UpdateStat_SQL(Buffer_Stat statBuffer, IdentityResponse id)
         {
             try
             {
-                string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), statBuffer.DBName);
+                string connectionString = ControllerUtility.GetSiteDBConnString(_configuration.GetValue<string>("SiteDBServer"), id);
                 using (SqlConnection sqlConn = new SqlConnection(connectionString))
                 {
                     sqlConn.Open();

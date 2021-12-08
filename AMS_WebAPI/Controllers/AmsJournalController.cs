@@ -36,7 +36,7 @@ namespace AMS_WebAPI.Controllers
         [HttpGet("JrnMaxUTC")]
         public IActionResult GetJrnMaxUTC()
         {
-            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            IdentityResponse id = ControllerUtility.GetDBInfoFromIdentity(HttpContext.User.Identity, Request);
             if (id.Status != RESULT.SUCCESS)
             {
                 _logger.LogError(id.ToString());
@@ -62,7 +62,7 @@ namespace AMS_WebAPI.Controllers
 
             try
             {
-                DateTime maxUTC = GetJrnMaxUTC_SQL(id.DB, Convert.ToInt32(Request.Headers["Param"]));
+                DateTime maxUTC = GetJrnMaxUTC_SQL(Convert.ToInt32(Request.Headers["Param"]), id);
                 return Ok(maxUTC);
             }
             catch (Exception e)
@@ -73,13 +73,13 @@ namespace AMS_WebAPI.Controllers
             }
         }
 
-        private DateTime GetJrnMaxUTC_SQL(string DBName, int firstTblIdx)
+        private DateTime GetJrnMaxUTC_SQL(int firstTblIdx, IdentityResponse id)
         {
             try
             {
                 DateTime maxUTC = DateTime.MinValue;
 
-                string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), DBName);
+                string connectionString = ControllerUtility.GetSiteDBConnString(_configuration.GetValue<string>("SiteDBServer"), id);
                 using (SqlConnection sqlConn = new SqlConnection(connectionString))
                 {
                     sqlConn.Open();
@@ -118,7 +118,7 @@ namespace AMS_WebAPI.Controllers
 
         private IActionResult AddJournal(string zippedData)
         {
-            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            IdentityResponse id = ControllerUtility.GetDBInfoFromIdentity(HttpContext.User.Identity, Request);
             if (id.Status != RESULT.SUCCESS)
             {
                 _logger.LogError(id.ToString());
@@ -150,7 +150,7 @@ namespace AMS_WebAPI.Controllers
                 for (int i = 0; i < buffer.jrnList.Count; i++)
                 {
                     JournalRecord jrn = buffer.jrnList[i];
-                    AddJournal_SQL(buffer.DBName, jrn.UTC, buffer.chIdxList, jrn.chValList);
+                    AddJournal_SQL(jrn.UTC, buffer.chIdxList, jrn.chValList, id);
                 }
             }
             catch (Exception e)
@@ -163,9 +163,9 @@ namespace AMS_WebAPI.Controllers
             return Ok();
         }
 
-        private void AddJournal_SQL(string DBName, DateTime UTC, List<short> chIdList, List<short> chValList)
+        private void AddJournal_SQL(DateTime UTC, List<short> chIdList, List<short> chValList, IdentityResponse id)
         {
-            string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), DBName);
+            string connectionString = ControllerUtility.GetSiteDBConnString(_configuration.GetValue<string>("SiteDBServer"), id);
             using (SqlConnection sqlConn = new SqlConnection(connectionString))
             {
                 sqlConn.Open();

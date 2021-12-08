@@ -35,7 +35,7 @@ namespace AMS_WebAPI.Controllers
         [HttpGet]
         public IActionResult GetRMSMaxUTC()
         {
-            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            IdentityResponse id = ControllerUtility.GetDBInfoFromIdentity(HttpContext.User.Identity, Request);
             if (id.Status != RESULT.SUCCESS)
             {
                 _logger.LogError(id.ToString());
@@ -61,7 +61,7 @@ namespace AMS_WebAPI.Controllers
 
             try
             {
-                DateTime maxUTC = GetRMSMaxUTC_SQL(id.DB, Convert.ToInt32(Request.Headers["Param"]));
+                DateTime maxUTC = GetRMSMaxUTC_SQL(Convert.ToInt32(Request.Headers["Param"]), id);
                 return Ok(maxUTC);
             }
             catch (Exception e)
@@ -72,13 +72,13 @@ namespace AMS_WebAPI.Controllers
             }
         }
 
-        private DateTime GetRMSMaxUTC_SQL(string DBName, int tblIdx)
+        private DateTime GetRMSMaxUTC_SQL(int tblIdx, IdentityResponse id)
         {
             try
             {
                 DateTime maxUTC = DateTime.MinValue;
 
-                string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), DBName);
+                string connectionString = ControllerUtility.GetSiteDBConnString(_configuration.GetValue<string>("SiteDBServer"), id);
                 using (SqlConnection sqlConn = new SqlConnection(connectionString))
                 {
                     sqlConn.Open();
@@ -117,7 +117,7 @@ namespace AMS_WebAPI.Controllers
         
         private IActionResult UpdateRMSBlocks(string zippedData)
         {
-            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            IdentityResponse id = ControllerUtility.GetDBInfoFromIdentity(HttpContext.User.Identity, Request);
             if (id.Status != RESULT.SUCCESS)
             {
                 _logger.LogError(id.ToString());
@@ -155,7 +155,7 @@ namespace AMS_WebAPI.Controllers
                     Buffer_RMS.GetRMSRecordByIndex(buffer.rmsBuffer, i, buffer.chEnList, buffer.auxEnList, ref UTC, ref chValList, ref auxValList);
                     if (UTC != DateTime.MinValue)
                     {
-                        AddOneRMSBlock(buffer, UTC, chValList, auxValList);
+                        AddOneRMSBlock(buffer, UTC, chValList, auxValList, id);
                     }
                 }
 
@@ -169,10 +169,10 @@ namespace AMS_WebAPI.Controllers
             }
         }
 
-        private void AddOneRMSBlock(Buffer_RMS rmsBuffer, DateTime UTC, List<short> chValList, List<short> auxValList)
+        private void AddOneRMSBlock(Buffer_RMS rmsBuffer, DateTime UTC, List<short> chValList, List<short> auxValList, IdentityResponse id)
         {
             SQLParts sqlParts;
-            string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), rmsBuffer.DBName);
+            string connectionString = ControllerUtility.GetSiteDBConnString(_configuration.GetValue<string>("SiteDBServer"), id);
             using (SqlConnection sqlConn = new SqlConnection(connectionString))
             {
                 sqlConn.Open();

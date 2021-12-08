@@ -1,11 +1,10 @@
-﻿using AMS_WebAPI.Models;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 
 namespace AMS_WebAPI.Controllers
 {
@@ -15,6 +14,8 @@ namespace AMS_WebAPI.Controllers
     [Route("[controller]")]
     public class WeatherForecastController : ControllerBase
     {
+        private readonly IConfiguration _configuration;
+
         private static readonly string[] Summaries = new[]
         {
             "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
@@ -22,9 +23,10 @@ namespace AMS_WebAPI.Controllers
 
         private readonly ILogger<WeatherForecastController> _logger;
 
-        public WeatherForecastController(ILogger<WeatherForecastController> logger)
+        public WeatherForecastController(ILogger<WeatherForecastController> logger, IConfiguration configuration)
         {
             _logger = logger;
+            _configuration = configuration;
         }
 
         [HttpGet]
@@ -39,5 +41,20 @@ namespace AMS_WebAPI.Controllers
             })
             .ToArray();
         }
+
+        [HttpGet("{name}")]
+        public string Get(string name)
+        {
+            _logger.LogInformation("...... Test from Get names");
+            return _configuration.GetValue<string>(name);
+        }
+
+        //[Authorize]
+        //[HttpGet("{name1}")]
+        //public string GetAuthName(string name1)
+        //{
+        //    _logger.LogInformation("...... Test from Get names");
+        //    return _configuration.GetValue<string>(name1);
+        //}
     }
 }

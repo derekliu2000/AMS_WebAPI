@@ -43,7 +43,7 @@ namespace AMS_WebAPI.Controllers
 
         private IActionResult UpdateAmsSetting(string zippedData)
         {
-            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            IdentityResponse id = ControllerUtility.GetDBInfoFromIdentity(HttpContext.User.Identity, Request);
             if (id.Status != RESULT.SUCCESS)
             {
                 _logger.LogError(id.ToString());
@@ -72,7 +72,7 @@ namespace AMS_WebAPI.Controllers
 
             try
             {
-                UpdateSettings_SQL(buffer);
+                UpdateSettings_SQL(buffer, id);
             }
             catch (Exception e)
             {
@@ -84,12 +84,12 @@ namespace AMS_WebAPI.Controllers
             return Ok();
         }
 
-        private void UpdateSettings_SQL(SettingBuffer settingBuffer)
+        private void UpdateSettings_SQL(SettingBuffer settingBuffer, IdentityResponse id)
         {
             try
             {
                 byte[] byteLatestSettingsInDB = null;
-                string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), settingBuffer.DBName);
+                string connectionString = ControllerUtility.GetSiteDBConnString(_configuration.GetValue<string>("SiteDBServer"), id);
                 using (SqlConnection sqlConn = new SqlConnection(connectionString))
                 {
                     sqlConn.Open();

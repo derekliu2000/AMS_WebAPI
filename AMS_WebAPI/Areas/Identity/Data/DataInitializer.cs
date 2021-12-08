@@ -1,4 +1,5 @@
 ﻿using AMS_WebAPI.Models;
+using API.Common.Utils;
 using Microsoft.AspNetCore.Identity;
 
 namespace AMS_WebAPI.Areas.Identity.Data
@@ -13,18 +14,20 @@ namespace AMS_WebAPI.Areas.Identity.Data
 
         public static void SeedUsers(UserManager<AMS_WebAPIUser> userManager)
         {
-            string[] list = { "ALH", "AMO1", "AMO2", "AMO3", "BAL", "BOISE", "BON", "BOW", "BRU3", "BSA1", "BUL", "BWN", "CAR-1", "CAR-2", "CAR-3", "CCS1", "CCS2", "CLF12", "CLF34", "CLF56", "CLN", "COE", "CON1", "CON2", "CPS", "CRY12", "CRY45", "CVL4", "CVL56", "DAV4", "DKS", "EBD", "ELM1", "ELM2", "FLI", "GAV1", "GAV2", "GRE", "HAV6", "HEN-12", "HTC1", "HTC2", "HUGO", "INF", "JKS", "JOP", "KCR1", "KCR2", "KCR3", "KCR4", "KCR5", "KEYST-1", "KEYST-2", "KGC", "KLN", "KOD", "LAW", "LON", "LVP", "MABE", "MAEN", "MAES", "MIA7", "MIA8", "MIT1", "MIT2", "MLMR12", "MLR1", "MON-12", "MOR-12", "MOU", "MTN1", "MTN2", "MUS", "NOR-34", "OCR78", "ONT12", "PAR", "PAW", "PEA", "PKY", "PLS", "POLK", "PSGC", "PWW", "QUI", "RBD", "RHS", "ROS", "SANJ", "SCR", "SEM12", "SHR1", "SHR2", "SHR3", "SHR4", "SHW", "SMG", "SMI", "SPK", "SPR", "SPW", "STU-14", "SUD6", "SUN", "SWD", "THH-3", "TOLK1", "TRA1", "TRC", "TURK1", "VIC", "WAL", "WAR", "WGS4", "WLK", "WTR", "ZIM", "COL", "MLR2", "MLR3" };
+            string[] list = { "AMO1", "AMO2", "AMO3", "BAL", "BON", "BSA1", "BUL", "BWN", "CCS1", "CCS2", "CLN", "COE", "COL", "CON1", "CON2", "DAV4", "DKS", "EBD", "ELM1", "ELM2", "FLI", "GAV1", "GAV2", "GRE", "HTC1", "HTC2", "HUGO", "INF", "JKS", "JOP", "KCR1", "KCR2", "KCR3", "KCR4", "KCR5", "KEYST-1", "KEYST-2", "KGC", "KOD", "LAW", "LON", "LVP", "MABE", "MAEN", "MIA7", "MIA8", "MIT1", "MIT2", "MLMR12", "MLR1", "MLR2", "MLR3", "MLR4", "MON-12", "MOR-12", "MOU", "MUS", "NOR-34", "OCR78", "PAW", "PEA", "PKY", "PLS", "PSGC", "PWW", "QUI", "RHS", "SANJ", "SCR", "SEM12", "SHR1", "SHR2", "SHR3", "SMG", "SMI", "SPK", "SPR", "SPW", "SWD", "TRC", "TURK1", "VIC", "WAL", "WAR", "WGS4", "ZIM" };
 
             for (int i = 0; i < list.Length; i++)
             {
                 if (userManager.FindByNameAsync(list[i]).Result == null)
                 {
                     AMS_WebAPIUser user = new AMS_WebAPIUser();
-                    user.UserName = list[i];
+                    user.UserName = "AMS_" + list[i];
                     user.Email = $"{list[i]}@GMAIL.COM";
                     user.DBName = $"AMS_{list[i]}";
+                    user.DBUID = Rijndael.Encrypt("data_sync_AMS_" + list[i], Rijndael.EP_PASSPHRASE, Rijndael.EP_SALTVALUE, Rijndael.EP_HASHALGORITHM, Rijndael.EP_PASSWORDITERATIONS, Rijndael.EP_INITVECTOR, Rijndael.EP_KEYSIZE);
+                    user.DBPassword = Rijndael.Encrypt("AMS_" + list[i] + "Mistras$95", Rijndael.EP_PASSPHRASE, Rijndael.EP_SALTVALUE, Rijndael.EP_HASHALGORITHM, Rijndael.EP_PASSWORDITERATIONS, Rijndael.EP_INITVECTOR, Rijndael.EP_KEYSIZE);
 
-                    IdentityResult result = userManager.CreateAsync(user, $"{list[i]}Mistras!95").Result;
+                    IdentityResult result = userManager.CreateAsync(user, $"AMS_{list[i]}Mistras!95").Result;
                     if (result.Succeeded)
                     {
                         userManager.AddToRoleAsync(user, UserRoles.DataSync_User).Wait();

@@ -2,6 +2,7 @@
 using AMS_WebAPI.Data;
 using AMS_WebAPI.Models;
 using API.Common.AMS;
+using API.Common.Utils;
 using API.Common.WebAPI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -14,8 +15,6 @@ using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.IO;
-using System.Net;
-using System.Net.Http;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
@@ -47,50 +46,6 @@ namespace AMS_WebAPI.Controllers
             _roleManager = roleManager;
             _configuration = configuration;
             _logger = logger;
-        }
-
-        [AllowAnonymous]
-        [HttpPost("testPost1")]
-        public async Task<IActionResult> TestPost1()
-        {
-            using (StreamReader reader = new StreamReader(Request.Body, Encoding.UTF8))
-            {
-                string ss = await reader.ReadToEndAsync();
-                return Ok(new Response() { Status = RESULT.SUCCESS, Msg = "Invoke Test_Anonymous successfully" });
-            }
-        }
-
-        [HttpPost("PostTestNoBody_Anonymous")]
-        [AllowAnonymous]
-        public IActionResult PostTestNoBody_Anonymous()
-        {
-            return Ok(new Response { Status = RESULT.SUCCESS, Msg = "Invoke Test_Anonymous successfully" });
-        }
-
-        [HttpPost("PostTestWithBody_Anonymous")]
-        [AllowAnonymous]
-        public IActionResult PostTestWithBody_Anonymous([FromBody] string value)
-        {
-            return Ok(new Response { Status = RESULT.SUCCESS, Msg = "Invoke Test_Anonymous successfully" });
-        }
-
-        [HttpGet("Test_Anonymous")]
-        [AllowAnonymous]
-        public IActionResult Test_Anonymous([FromHeader] string TestBlock)
-        {
-            return Ok(new Response { Status = RESULT.SUCCESS, Msg = "Invoke Test_Anonymous successfully" });
-        }
-
-        [HttpGet("Test_Authrized")]
-        public IActionResult Test_Authrized()
-        {
-            return Ok(new Response { Status = RESULT.SUCCESS, Msg = "Invoke Test_Authrized successfully" });
-        }
-
-        [HttpPost("Post1")]
-        public HttpResponseMessage Post1([FromBody] string name)
-        {
-            return new HttpResponseMessage(HttpStatusCode.OK);
         }
 
         [HttpPost]
@@ -176,6 +131,34 @@ namespace AMS_WebAPI.Controllers
                 return StatusCode(StatusCodes.Status401Unauthorized, rsp);
             }
 
+            string DBUID = "";
+            try
+            {
+                DBUID = Rijndael.Decrypt(user.DBUID, Rijndael.EP_PASSPHRASE, Rijndael.EP_SALTVALUE, Rijndael.EP_HASHALGORITHM, Rijndael.EP_PASSWORDITERATIONS, Rijndael.EP_INITVECTOR, Rijndael.EP_KEYSIZE);
+                if (DBUID.Length == 0)
+                    throw new Exception("DBUID can't be empty.");
+            }
+            catch (Exception e)
+            {
+                rsp = new Response(RESULT.DECRYPT_DB_UID, loginBuffer.DBName, Request.Headers["Host"], $"Decrypt DBUID failed. {e.Message}");
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status401Unauthorized, rsp);
+            }
+
+            string DBPassword = "";
+            try
+            {
+                DBPassword = Rijndael.Decrypt(user.DBPassword, Rijndael.EP_PASSPHRASE, Rijndael.EP_SALTVALUE, Rijndael.EP_HASHALGORITHM, Rijndael.EP_PASSWORDITERATIONS, Rijndael.EP_INITVECTOR, Rijndael.EP_KEYSIZE);
+                if (DBPassword.Length == 0)
+                    throw new Exception("DBPassword can't be empty.");
+            }
+            catch (Exception e)
+            {
+                rsp = new Response(RESULT.DECRYPT_DB_PASSWORD, loginBuffer.DBName, Request.Headers["Host"], $"Decrypt DBPassword failed. {e.Message}");
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status401Unauthorized, rsp);
+            }
+
             if (user.DBName.Trim().ToUpper() != loginBuffer.DBName.Trim().ToUpper())
             {
                 rsp = new Response(RESULT.DBNAME_NOT_MATCH, loginBuffer.DBName, Request.Headers["Host"], $"userDBName: {user.DBName}; bufferDBName: {loginBuffer.DBName}");
@@ -188,7 +171,9 @@ namespace AMS_WebAPI.Controllers
                 {
                     new Claim(ClaimTypes.Name, user.UserName),
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                    new Claim("DBName", user.DBName)
+                    new Claim("DBName", user.DBName),
+                    new Claim("DBUID", DBUID),
+                    new Claim("DBPassword", DBPassword),
                 };
 
             foreach (var userrole in userRoles)
@@ -196,10 +181,10 @@ namespace AMS_WebAPI.Controllers
                 authClaims.Add(new Claim(ClaimTypes.Role, userrole));
             }
 
-            var authSigninKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
-            var token = new JwtSecurityToken(issuer: _configuration["JWT:ValidIssuer"],
-                                             audience: _configuration["JWT:ValidAudience"],
-                                             expires: DateTime.Now.AddHours(5),
+            var authSigninKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWTSecret"]));
+            var token = new JwtSecurityToken(issuer: _configuration["JWTValidIssuer"],
+                                             audience: _configuration["JWTValidAudience"],
+                                             expires: DateTime.Now.AddMinutes(1),
                                              claims: authClaims,
                                              signingCredentials: new SigningCredentials(authSigninKey, SecurityAlgorithms.HmacSha256));
 

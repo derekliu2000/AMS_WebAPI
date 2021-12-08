@@ -42,7 +42,7 @@ namespace AMS_WebAPI.Controllers
         
         private IActionResult UpdateBar(string value)
         {
-            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            IdentityResponse id = ControllerUtility.GetDBInfoFromIdentity(HttpContext.User.Identity, Request);
             if (id.Status != RESULT.SUCCESS)
             {
                 _logger.LogError(id.ToString());
@@ -69,9 +69,11 @@ namespace AMS_WebAPI.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, rsp);
             }
 
+
+
             try
             {
-                UpdateBar_SQL(buffer);
+                UpdateBar_SQL(buffer, id);
             }
             catch (Exception e)
             {
@@ -83,11 +85,11 @@ namespace AMS_WebAPI.Controllers
             return Ok();
         }
 
-        private void UpdateBar_SQL(Buffer_Bar barBuffer)
+        private void UpdateBar_SQL(Buffer_Bar barBuffer, IdentityResponse id)
         {
             SQLParts sqlParts = SQLParts.ConstructSQLParts(barBuffer.chEnList, barBuffer.auxEnList, "BAR", 0);
 
-            string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), barBuffer.DBName);
+            string connectionString = ControllerUtility.GetSiteDBConnString(_configuration.GetValue<string>("SiteDBServer"), id);
             using (SqlConnection sqlConn = new SqlConnection(connectionString))
             {
                 sqlConn.Open();

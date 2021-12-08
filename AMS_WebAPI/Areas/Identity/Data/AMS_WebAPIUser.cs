@@ -10,5 +10,7 @@ namespace AMS_WebAPI.Areas.Identity.Data
     public class AMS_WebAPIUser : IdentityUser
     {
         public string DBName { get; set; }
+        public string DBUID { get; set; }
+        public string DBPassword { get; set; }
     }
 }

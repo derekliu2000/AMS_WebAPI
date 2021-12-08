@@ -45,7 +45,7 @@ namespace AMS_WebAPI.Controllers
                 
         private IActionResult AddSpecRef(string zippedData)
         {
-            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            IdentityResponse id = ControllerUtility.GetDBInfoFromIdentity(HttpContext.User.Identity, Request);
             if (id.Status != RESULT.SUCCESS)
             {
                 _logger.LogError(id.ToString());
@@ -74,7 +74,7 @@ namespace AMS_WebAPI.Controllers
 
             try
             {
-                AddSpecRef_SQL(buffer);
+                AddSpecRef_SQL(buffer, id);
             }
             catch (Exception e)
             {
@@ -86,12 +86,12 @@ namespace AMS_WebAPI.Controllers
             return Ok();
         }
 
-        private void AddSpecRef_SQL(Buffer_SpecRef specRefBuffer)
+        private void AddSpecRef_SQL(Buffer_SpecRef specRefBuffer, IdentityResponse id)
         {
             try
             {
                 byte[] byteSpecRef = null;
-                string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), specRefBuffer.DBName);
+                string connectionString = ControllerUtility.GetSiteDBConnString(_configuration.GetValue<string>("SiteDBServer"), id);
                 using (SqlConnection sqlConn = new SqlConnection(connectionString))
                 {
                     sqlConn.Open();

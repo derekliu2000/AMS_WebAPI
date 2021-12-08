@@ -41,7 +41,7 @@ namespace AMS_WebAPI.Controllers
             List<int> DTAFileIdxList;
             Dictionary<int, List<DateTime>> dic;
 
-            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            IdentityResponse id = ControllerUtility.GetDBInfoFromIdentity(HttpContext.User.Identity, Request);
             if (id.Status != RESULT.SUCCESS)
             {
                 _logger.LogError(id.ToString());
@@ -79,7 +79,7 @@ namespace AMS_WebAPI.Controllers
 
             try
             {
-                dic = GetDTAMaxUTC_SQL(id.DB, DTAFileIdxList);
+                dic = GetDTAMaxUTC_SQL(DTAFileIdxList, id);
             }
             catch (Exception e)
             {
@@ -102,7 +102,7 @@ namespace AMS_WebAPI.Controllers
             }
         }
 
-        private Dictionary<int, List<DateTime>> GetDTAMaxUTC_SQL(string DBName, List<int> DTAFileIdxList)
+        private Dictionary<int, List<DateTime>> GetDTAMaxUTC_SQL(List<int> DTAFileIdxList, IdentityResponse id)
         {
             try
             {
@@ -118,7 +118,7 @@ namespace AMS_WebAPI.Controllers
                                  $"UNION ALL SELECT {fileIdx}, MAX(UTC) FROM {AMSDB.TABLE_DTA[DTATblIdx]} WHERE C{fileIdx * 2 + 2} IS NOT NULL";
                 }
 
-                string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), DBName);
+                string connectionString = ControllerUtility.GetSiteDBConnString(_configuration.GetValue<string>("SiteDBServer"), id);
                 using (SqlConnection sqlConn = new SqlConnection(connectionString))
                 {
                     sqlConn.Open();
@@ -164,7 +164,7 @@ namespace AMS_WebAPI.Controllers
         }        
         private IActionResult AddWaveRecord(string zippedData)
         {
-            Response id = ControllerUtility.GetDBNameFromIdentity(HttpContext.User.Identity, Request);
+            IdentityResponse id = ControllerUtility.GetDBInfoFromIdentity(HttpContext.User.Identity, Request);
             if (id.Status != RESULT.SUCCESS)
             {
                 _logger.LogError(id.ToString());
@@ -196,7 +196,7 @@ namespace AMS_WebAPI.Controllers
                 for (int i = 0; i < buffer.WDList.Count; i++)
                 {
                     WaveData wd = buffer.WDList[i];
-                    AddWaveRecord_SQL(buffer.DBName, wd.Idx, wd.flag, wd.UTC, wd.data);
+                    AddWaveRecord_SQL(wd.Idx, wd.flag, wd.UTC, wd.data, id);
                 }
 
                 return Ok();
@@ -209,7 +209,7 @@ namespace AMS_WebAPI.Controllers
             }
         }
 
-        private void AddWaveRecord_SQL(string DBName, int fileIdx, int flag, DateTime UTC, byte[][] data)
+        private void AddWaveRecord_SQL(int fileIdx, int flag, DateTime UTC, byte[][] data, IdentityResponse id)
         {
             try
             {
@@ -225,7 +225,7 @@ namespace AMS_WebAPI.Controllers
                     update += (update.Length == 0 ? "" : ",") + $"C{fileIdx * 2 + 2}=@data2";
                 }
 
-                string connectionString = string.Format(_configuration.GetValue<string>("ConnectionStrings:SiteConnection"), DBName);
+                string connectionString = ControllerUtility.GetSiteDBConnString(_configuration.GetValue<string>("SiteDBServer"), id);
                 using (SqlConnection sqlConn = new SqlConnection(connectionString))
                 {
                     sqlConn.Open();
