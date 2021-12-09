@@ -184,7 +184,7 @@ namespace AMS_WebAPI.Controllers
             var authSigninKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWTSecret"]));
             var token = new JwtSecurityToken(issuer: _configuration["JWTValidIssuer"],
                                              audience: _configuration["JWTValidAudience"],
-                                             expires: DateTime.Now.AddHours(4),
+                                             expires: DateTime.Now.AddMinutes(Convert.ToInt32(_configuration["JWTExpireMinutes"])),
                                              claims: authClaims,
                                              signingCredentials: new SigningCredentials(authSigninKey, SecurityAlgorithms.HmacSha256));
 

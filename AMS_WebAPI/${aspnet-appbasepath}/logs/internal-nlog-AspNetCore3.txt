@@ -1,0 +1,7 @@
+2021-12-09 11:13:04.0435 Info Message Template Auto Format enabled
+2021-12-09 11:13:04.0725 Info Loading assembly: NLog.Web.AspNetCore
+2021-12-09 11:13:04.0725 Info Loading assembly: Microsoft.ApplicationInsights.NLogTarget
+2021-12-09 11:13:04.1495 Info Adding target FileTarget(Name=allfile)
+2021-12-09 11:13:04.1495 Info Adding target ConsoleTarget(Name=lifetimeConsole)
+2021-12-09 11:13:04.1630 Info Adding target ApplicationInsightsTarget(Name=aiTarget)
+2021-12-09 11:13:04.2007 Info Validating config: TargetNames=allfile, lifetimeConsole, aiTarget, ConfigItems=63, FilePath=D:\Projects\NewAMS\AMS_WebAPI\AMS_WebAPI\bin\Debug\netcoreapp3.1\nlog.config
