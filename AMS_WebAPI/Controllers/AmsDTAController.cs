@@ -245,16 +245,16 @@ namespace AMS_WebAPI.Controllers
                     if ((flag & 1) == 1)
                     {
                         byte[] data1 = ArrayOperate.ZipData(data[0]);
-                        if (data1.Length >= 512)
-                            sqlCmd.Parameters.Add("@data1", SqlDbType.VarBinary, data[0].Length).Value = data[0];
+                        if (data1.Length > 600)
+                            throw new Exception($"waveform data exceed limit. {data1.Length} > 600");
                         else
                             sqlCmd.Parameters.Add("@data1", SqlDbType.VarBinary, data1.Length).Value = data1;
                     }
                     if ((flag & 2) == 2)
                     {
                         byte[] data2 = ArrayOperate.ZipData(data[1]);
-                        if (data2.Length >= 512)
-                            sqlCmd.Parameters.Add("@data2", SqlDbType.VarBinary, data[1].Length).Value = data[1];
+                        if (data2.Length > 600)
+                            throw new Exception($"waveform data exceed limit. {data2.Length} > 600");
                         else
                             sqlCmd.Parameters.Add("@data2", SqlDbType.VarBinary, data2.Length).Value = data2;
                     }
