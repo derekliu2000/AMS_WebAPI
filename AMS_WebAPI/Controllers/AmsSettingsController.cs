@@ -97,6 +97,7 @@ namespace AMS_WebAPI.Controllers
                     SqlCommand sqlCmd = new SqlCommand();
                     sqlCmd.Connection = sqlConn;
 
+                    // AMS_Settings table
                     DataSet ds = new DataSet();
                     sqlCmd.CommandText = "SELECT TOP 1 Settings FROM AMS_Settings ORDER BY LastUpdateUTC DESC,ID DESC";
                     SqlDataAdapter dataAdapter = new SqlDataAdapter(sqlCmd);
@@ -108,11 +109,34 @@ namespace AMS_WebAPI.Controllers
                     }
 
                     if (byteLatestSettingsInDB == null ||
-                        byteLatestSettingsInDB.SequenceEqual(settingBuffer.binaryZippedSettings) == false)
+                        byteLatestSettingsInDB.SequenceEqual(settingBuffer.binaryZipped_t5set) == false)
                     {
                         sqlCmd.Parameters.Clear();
                         sqlCmd.CommandText = "INSERT INTO AMS_Settings (Settings,LastUpdateUTC) VALUES (@newSettings,@LastUpdateUTC)";
-                        sqlCmd.Parameters.Add("@newSettings", SqlDbType.VarBinary, settingBuffer.binaryZippedSettings.Length).Value = settingBuffer.binaryZippedSettings;
+                        sqlCmd.Parameters.Add("@newSettings", SqlDbType.VarBinary, settingBuffer.binaryZipped_t5set.Length).Value = settingBuffer.binaryZipped_t5set;
+                        sqlCmd.Parameters.AddWithValue("@LastUpdateUTC", settingBuffer.lastModifiedUTC);
+
+                        sqlCmd.ExecuteNonQuery();
+                    }
+
+                    // AMS_BoilerWin_Binary table
+                    ds = new DataSet();
+                    sqlCmd.CommandText = "SELECT TOP 1 Settings FROM AMS_BoilerWin_Binary ORDER BY LastUpdateUTC DESC,ID DESC";
+                    dataAdapter = new SqlDataAdapter(sqlCmd);
+                    dataAdapter.Fill(ds);
+
+                    byteLatestSettingsInDB = null;
+                    if (ds != null && ds.Tables.Count > 0 && ds.Tables[0].Rows.Count > 0 && ds.Tables[0].Rows[0][0] != DBNull.Value)
+                    {
+                        byteLatestSettingsInDB = (byte[])ds.Tables[0].Rows[0][0];
+                    }
+
+                    if (byteLatestSettingsInDB == null ||
+                        byteLatestSettingsInDB.SequenceEqual(settingBuffer.binaryZippedOrgBinaryFile) == false)
+                    {
+                        sqlCmd.Parameters.Clear();
+                        sqlCmd.CommandText = "INSERT INTO AMS_BoilerWin_Binary (Settings,LastUpdateUTC) VALUES (@newSettings,@LastUpdateUTC)";
+                        sqlCmd.Parameters.Add("@newSettings", SqlDbType.VarBinary, settingBuffer.binaryZippedOrgBinaryFile.Length).Value = settingBuffer.binaryZippedOrgBinaryFile;
                         sqlCmd.Parameters.AddWithValue("@LastUpdateUTC", settingBuffer.lastModifiedUTC);
 
                         sqlCmd.ExecuteNonQuery();
