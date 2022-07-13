@@ -1,0 +1,42 @@
+2022-07-12 13:45:47.2447 Info Message Template Auto Format enabled
+2022-07-12 13:45:47.2818 Info Loading assembly: NLog.Web.AspNetCore
+2022-07-12 13:45:47.2818 Info Loading assembly: Microsoft.ApplicationInsights.NLogTarget
+2022-07-12 13:45:47.3765 Info Adding target FileTarget(Name=allfile)
+2022-07-12 13:45:47.3801 Info Adding target ConsoleTarget(Name=lifetimeConsole)
+2022-07-12 13:45:47.3801 Info Adding target ApplicationInsightsTarget(Name=aiTarget)
+2022-07-12 13:45:47.4615 Info Validating config: TargetNames=allfile, lifetimeConsole, aiTarget, ConfigItems=63, FilePath=D:\Projects\NewAMS\AMS_WebAPI\AMS_WebAPI\bin\Debug\netcoreapp3.1\nlog.config
+2022-07-12 14:36:51.7745 Info Message Template Auto Format enabled
+2022-07-12 14:36:51.8109 Info Loading assembly: NLog.Web.AspNetCore
+2022-07-12 14:36:51.8109 Info Loading assembly: Microsoft.ApplicationInsights.NLogTarget
+2022-07-12 14:36:51.9136 Info Adding target FileTarget(Name=allfile)
+2022-07-12 14:36:51.9136 Info Adding target ConsoleTarget(Name=lifetimeConsole)
+2022-07-12 14:36:51.9254 Info Adding target ApplicationInsightsTarget(Name=aiTarget)
+2022-07-12 14:36:52.0051 Info Validating config: TargetNames=allfile, lifetimeConsole, aiTarget, ConfigItems=63, FilePath=D:\Projects\NewAMS\AMS_WebAPI\AMS_WebAPI\bin\Debug\netcoreapp3.1\nlog.config
+2022-07-12 14:38:30.6035 Info Message Template Auto Format enabled
+2022-07-12 14:38:30.6462 Info Loading assembly: NLog.Web.AspNetCore
+2022-07-12 14:38:30.6462 Info Loading assembly: Microsoft.ApplicationInsights.NLogTarget
+2022-07-12 14:38:30.8073 Info Adding target FileTarget(Name=allfile)
+2022-07-12 14:38:30.8142 Info Adding target ConsoleTarget(Name=lifetimeConsole)
+2022-07-12 14:38:30.8142 Info Adding target ApplicationInsightsTarget(Name=aiTarget)
+2022-07-12 14:38:30.9071 Info Validating config: TargetNames=allfile, lifetimeConsole, aiTarget, ConfigItems=63, FilePath=D:\Projects\NewAMS\AMS_WebAPI\AMS_WebAPI\bin\Debug\netcoreapp3.1\nlog.config
+2022-07-12 15:36:29.8238 Info Message Template Auto Format enabled
+2022-07-12 15:36:29.8549 Info Loading assembly: NLog.Web.AspNetCore
+2022-07-12 15:36:29.8549 Info Loading assembly: Microsoft.ApplicationInsights.NLogTarget
+2022-07-12 15:36:29.9691 Info Adding target FileTarget(Name=allfile)
+2022-07-12 15:36:29.9691 Info Adding target ConsoleTarget(Name=lifetimeConsole)
+2022-07-12 15:36:29.9891 Info Adding target ApplicationInsightsTarget(Name=aiTarget)
+2022-07-12 15:36:30.0665 Info Validating config: TargetNames=allfile, lifetimeConsole, aiTarget, ConfigItems=63, FilePath=D:\Projects\NewAMS\AMS_WebAPI\AMS_WebAPI\bin\Debug\netcoreapp3.1\nlog.config
+2022-07-12 15:40:40.9002 Info Message Template Auto Format enabled
+2022-07-12 15:40:40.9266 Info Loading assembly: NLog.Web.AspNetCore
+2022-07-12 15:40:40.9266 Info Loading assembly: Microsoft.ApplicationInsights.NLogTarget
+2022-07-12 15:40:41.0295 Info Adding target FileTarget(Name=allfile)
+2022-07-12 15:40:41.0295 Info Adding target ConsoleTarget(Name=lifetimeConsole)
+2022-07-12 15:40:41.0487 Info Adding target ApplicationInsightsTarget(Name=aiTarget)
+2022-07-12 15:40:41.1091 Info Validating config: TargetNames=allfile, lifetimeConsole, aiTarget, ConfigItems=63, FilePath=D:\Projects\NewAMS\AMS_WebAPI\AMS_WebAPI\bin\Debug\netcoreapp3.1\nlog.config
+2022-07-13 11:17:20.0529 Info Message Template Auto Format enabled
+2022-07-13 11:17:20.0784 Info Loading assembly: NLog.Web.AspNetCore
+2022-07-13 11:17:20.0784 Info Loading assembly: Microsoft.ApplicationInsights.NLogTarget
+2022-07-13 11:17:20.1873 Info Adding target FileTarget(Name=allfile)
+2022-07-13 11:17:20.1923 Info Adding target ConsoleTarget(Name=lifetimeConsole)
+2022-07-13 11:17:20.1923 Info Adding target ApplicationInsightsTarget(Name=aiTarget)
+2022-07-13 11:17:20.2613 Info Validating config: TargetNames=allfile, lifetimeConsole, aiTarget, ConfigItems=63, FilePath=D:\Projects\NewAMS\AMS_WebAPI\AMS_WebAPI\bin\Debug\netcoreapp3.1\nlog.config

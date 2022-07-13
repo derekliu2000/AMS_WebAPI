@@ -50,10 +50,33 @@ namespace AMS_WebAPI.Controllers
 
         [HttpPost]
         [AllowAnonymous]
-        [Route("registerDataSyncUser")]
-        public async Task<IActionResult> RegisterDataSyncUser([FromBody] RegisterModel model)
+        [Route("RegisterDataSyncUser")]
+        public async Task<IActionResult> PostRegisterDataSyncUser()
         {
-            var userExist = await _userManager.FindByNameAsync(model.UserName);
+            using (StreamReader reader = new StreamReader(Request.Body, Encoding.UTF8))
+            {
+                string zippedData = await reader.ReadToEndAsync();
+                return RegisterDataSyncUser(zippedData);
+            }
+        }
+
+        private IActionResult RegisterDataSyncUser(string value)
+        {
+            Response rsp;
+            Buffer_Account_Register registerBuffer = null;
+
+            try
+            {
+                registerBuffer = new Buffer_Account_Register(value, Request.Headers["Data-Hash"]);
+            }
+            catch (Exception e)
+            {
+                rsp = new Response(RESULT.NEW_BUFFER, "", Request.Headers["Host"], e.Message);
+                _logger.LogError(rsp.ToString());
+                return StatusCode(StatusCodes.Status500InternalServerError, rsp);
+            }
+
+            var userExist = _userManager.FindByNameAsync(registerBuffer.UserName).GetAwaiter().GetResult();
             if (userExist != null)
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = RESULT.ERROR, Msg = "User already exist" });
@@ -61,25 +84,18 @@ namespace AMS_WebAPI.Controllers
 
             AMS_WebAPIUser user = new AMS_WebAPIUser()
             {
-                Email = model.Email,
+                Email = registerBuffer.Email,
                 SecurityStamp = Guid.NewGuid().ToString(),
-                UserName = model.UserName
+                UserName = registerBuffer.UserName,
+                DBName = registerBuffer.AzureDB,
+                DBUID = Rijndael.Encrypt(registerBuffer.AzureDBUID, Rijndael.EP_PASSPHRASE, Rijndael.EP_SALTVALUE, Rijndael.EP_HASHALGORITHM, Rijndael.EP_PASSWORDITERATIONS, Rijndael.EP_INITVECTOR, Rijndael.EP_KEYSIZE),
+                DBPassword = Rijndael.Encrypt(registerBuffer.AzureDBPwd, Rijndael.EP_PASSPHRASE, Rijndael.EP_SALTVALUE, Rijndael.EP_HASHALGORITHM, Rijndael.EP_PASSWORDITERATIONS, Rijndael.EP_INITVECTOR, Rijndael.EP_KEYSIZE)
             };
 
-            var result = await _userManager.CreateAsync(user, model.Password);
+            var result = _userManager.CreateAsync(user, registerBuffer.Password).GetAwaiter().GetResult();
             if (!result.Succeeded)
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = RESULT.ERROR, Msg = "User creation fail" });
-            }
-
-            if (!await _roleManager.RoleExistsAsync(UserRoles.DataSync_User))
-            {
-                await _roleManager.CreateAsync(new IdentityRole(UserRoles.DataSync_User));
-            }
-
-            if (await _roleManager.RoleExistsAsync(UserRoles.DataSync_User))
-            {
-                await _userManager.AddToRoleAsync(user, UserRoles.DataSync_User);
             }
 
             return Ok(new Response { Status = RESULT.SUCCESS, Msg = "Data Sync User created successfully" });
